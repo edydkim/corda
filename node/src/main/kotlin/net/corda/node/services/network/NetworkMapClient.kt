@@ -18,10 +18,7 @@ import net.corda.node.services.api.NetworkMapCacheInternal
 import net.corda.node.utilities.NamedThreadFactory
 import net.corda.node.utilities.registration.cacheControl
 import net.corda.nodeapi.internal.SignedNodeInfo
-import net.corda.nodeapi.internal.network.NETWORK_PARAMS_UPDATE_FILE_NAME
-import net.corda.nodeapi.internal.network.NetworkMap
-import net.corda.nodeapi.internal.network.ParametersUpdate
-import net.corda.nodeapi.internal.network.verifiedNetworkMapCert
+import net.corda.nodeapi.internal.network.*
 import rx.Subscription
 import rx.subjects.PublishSubject
 import java.io.BufferedReader
@@ -57,7 +54,7 @@ class NetworkMapClient(compatibilityZoneURL: URL, val trustedRoot: X509Certifica
     fun getNetworkMap(): NetworkMapResponse {
         logger.trace { "Fetching network map update from $networkMapUrl." }
         val connection = networkMapUrl.openHttpConnection()
-        val signedNetworkMap = connection.responseAs<SignedDataWithCert<NetworkMap>>()
+        val signedNetworkMap = connection.responseAs<SignedNetworkMap>()
         val networkMap = signedNetworkMap.verifiedNetworkMapCert(trustedRoot)
         val timeout = connection.cacheControl().maxAgeSeconds().seconds
         logger.trace { "Fetched network map update from $networkMapUrl successfully, retrieved ${networkMap.nodeInfoHashes.size} node info hashes. Node Info hashes: ${networkMap.nodeInfoHashes.joinToString("\n")}" }
@@ -72,10 +69,10 @@ class NetworkMapClient(compatibilityZoneURL: URL, val trustedRoot: X509Certifica
         return verifiedNodeInfo
     }
 
-    fun getNetworkParameters(networkParameterHash: SecureHash): SignedDataWithCert<NetworkParameters> {
+    fun getNetworkParameters(networkParameterHash: SecureHash): SignedNetworkParameters {
         val url = URL("$networkMapUrl/network-parameters/$networkParameterHash")
         logger.trace { "Fetching network parameters: '$networkParameterHash' from $url." }
-        val networkParameter = url.openHttpConnection().responseAs<SignedDataWithCert<NetworkParameters>>()
+        val networkParameter = url.openHttpConnection().responseAs<SignedNetworkParameters>()
         logger.trace { "Fetched network parameters: '$networkParameterHash' successfully. Network Parameters: $networkParameter" }
         return networkParameter
     }
@@ -101,7 +98,7 @@ class NetworkMapUpdater(private val networkMapCache: NetworkMapCacheInternal,
         private val retryInterval = 1.minutes
     }
 
-    private var newNetworkParameters: Pair<ParametersUpdate, SignedDataWithCert<NetworkParameters>>? = null
+    private var newNetworkParameters: Pair<ParametersUpdate, SignedNetworkParameters>? = null
 
     fun track(): DataFeed<ParametersUpdateInfo?, ParametersUpdateInfo> {
         val currentUpdateInfo = newNetworkParameters?.let {
